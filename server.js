@@ -1,26 +1,41 @@
-import WebSocket from 'ws';
-import http from 'http';
+import { WebSocketServer } from 'ws';
 
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+const port = process.env.PORT || 8090;
+const wss = new WebSocketServer({ port });
+
+let espSocket = null;
+let webSockets = [];
 
 wss.on('connection', (ws) => {
-  console.log('A new client connected!');
-  
-  ws.send('Hello from the WebSocket server!');
+	ws.on('message', (data) => {
+		const message = JSON.parse(data);
 
-  ws.on('message', (message) => {
-    console.log(`Received: ${message}`);
+		if (ws.protocol === 'esp32') {
+			webSockets.forEach((webSocket) => {
+				webSocket.send(JSON.stringify(message));
+			});
+		}
 
-    ws.send(`Server received: ${message}`);
-  });
+		if (ws.protocol === 'webapp') {
+			if (espSocket) {
+				espSocket.send(JSON.stringify(message));
+			}
+		}
+	});
 
-  ws.on('close', () => {
-    console.log('Client disconnected');
-  });
-});
+	if (ws.protocol === 'webapp') {
+		webSockets.push(ws);
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`WebSocket server running on port ${PORT}`);
+		ws.on('close', () => {
+			webSockets = webSockets.filter((client) => client !== ws);
+		});
+	}
+
+	if (ws.protocol === 'esp32') {
+		espSocket = ws;
+
+		ws.on('close', () => {
+			espSocket = null;
+		});
+	}
 });
