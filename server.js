@@ -7,22 +7,6 @@ let espSocket = null;
 let webSockets = [];
 
 wss.on('connection', (ws) => {
-	ws.on('message', (data) => {
-		const message = JSON.parse(data);
-
-		if (ws.protocol === 'esp32') {
-			webSockets.forEach((webSocket) => {
-				webSocket.send(JSON.stringify(message));
-			});
-		}
-
-		if (ws.protocol === 'webapp') {
-			if (espSocket) {
-				espSocket.send(JSON.stringify(message));
-			}
-		}
-	});
-
 	if (ws.protocol === 'webapp') {
 		webSockets.push(ws);
 
@@ -38,4 +22,26 @@ wss.on('connection', (ws) => {
 			espSocket = null;
 		});
 	}
+
+	ws.on('message', (data) => {
+		let message;
+		try {
+			message = JSON.parse(data);
+		} catch (error) {
+			ws.send(JSON.stringify({"error": "Message is not valid json."}));
+			return;
+		}
+
+		if (ws.protocol === 'esp32') {
+			webSockets.forEach((webSocket) => {
+				webSocket.send(JSON.stringify(message));
+			});
+		}
+
+		if (ws.protocol === 'webapp') {
+			if (espSocket) {
+				espSocket.send(JSON.stringify(message));
+			}
+		}
+	});
 });
