@@ -28,7 +28,7 @@ wss.on('connection', (ws) => {
 		try {
 			message = JSON.parse(data);
 		} catch (error) {
-			ws.send(JSON.stringify({"error": "Message is not valid json."}));
+			ws.emit('error', new Error('Message is not valid JSON.'));
 			return;
 		}
 
