@@ -30,25 +30,17 @@ wss.on('connection', (ws) => {
 	ws.on('message', (data) => {
 		console.log('Message received');
 
-		let message;
-		try {
-			message = JSON.parse(data);
-		} catch (error) {
-			ws.send(JSON.stringify({ error: 'Invalid JSON format.' }));
-			return;
-		}
-
 		if (ws.protocol === 'esp') {
 			console.log('Sending message to webapps');
 			webSockets.forEach((webSocket) => {
-				webSocket.send(JSON.stringify(message));
+				webSocket.send(data);
 			});
 		}
 
 		if (ws.protocol === 'webapp') {
 			console.log('Sending message to esp');
 			if (espSocket) {
-				espSocket.send(JSON.stringify(message));
+				espSocket.send(data);
 			}
 		}
 	});
