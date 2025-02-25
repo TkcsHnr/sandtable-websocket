@@ -8,8 +8,11 @@ const wss = new WebSocketServer({ port, maxPayload: 10000 });
 let espSocket = null;
 let webSockets = [];
 
-wss.on('connection', (ws) => {
-	let protocols = ws.protocol.split(',').map((p) => p.trim());
+wss.on('connection', (ws, req) => {
+	let protocols = (req.headers['sec-websocket-protocol'] || '')
+		.split(',')
+		.map((p) => p.trim());
+		
 	if (protocols.length < 2 || protocols[1] != password) {
 		console.log('Unauthorized connection: ', protocols);
 		ws.close(1008, 'Unauthorized connection');
