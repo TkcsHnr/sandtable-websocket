@@ -9,12 +9,12 @@ let espSocket = null;
 let webSockets = [];
 
 wss.on('connection', (ws) => {
-	let protocols = ws.protocol.split(',').map(p => p.trim());
-	if(protocols.length < 2 || protocols[1] != password) {
-		ws.close(1008, "Unauthorized connection");
+	let protocols = ws.protocol.split(',').map((p) => p.trim());
+	if (protocols.length < 2 || protocols[1] != password) {
+		console.log('Unauthorized connection: ', protocols);
+		ws.close(1008, 'Unauthorized connection');
 		return;
 	}
-
 
 	if (protocols[0] === 'webapp') {
 		console.log('Webapp connected');
@@ -38,7 +38,7 @@ wss.on('connection', (ws) => {
 
 	ws.on('message', (data) => {
 		console.log('Message received');
-		
+
 		if (protocols[0] === 'esp') {
 			console.log('Sending message to webapps');
 			webSockets.forEach((webSocket) => {
