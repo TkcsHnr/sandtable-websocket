@@ -8,11 +8,13 @@ const wss = new WebSocketServer({ port, maxPayload: 10000 });
 let espSocket = null;
 let webSockets = [];
 
+const WSCmdType_ESP_STATE = 0x0f;
+
 wss.on('connection', (ws, req) => {
 	let protocols = (req.headers['sec-websocket-protocol'] || '')
 		.split(',')
 		.map((p) => p.trim());
-		
+
 	if (protocols.length < 2 || protocols[1] != password) {
 		console.log('Unauthorized connection: ', protocols);
 		ws.close(1008, 'Unauthorized connection');
@@ -22,6 +24,7 @@ wss.on('connection', (ws, req) => {
 	if (protocols[0] === 'webapp') {
 		console.log('Webapp connected');
 		webSockets.push(ws);
+		ws.send([WSCmdType_ESP_STATE, espSocket == null ? 0 : 1]);
 
 		ws.on('close', () => {
 			webSockets = webSockets.filter((client) => client !== ws);
@@ -32,10 +35,17 @@ wss.on('connection', (ws, req) => {
 	if (protocols[0] === 'esp') {
 		console.log('Esp connected');
 		espSocket = ws;
+		webSockets.forEach((webSocket) => {
+			webSocket.send([WSCmdType_ESP_STATE, 1]);
+		});
 
 		ws.on('close', () => {
 			espSocket = null;
 			console.log('Esp disconnected');
+
+			webSockets.forEach((webSocket) => {
+				webSocket.send([WSCmdType_ESP_STATE, 0]);
+			});
 		});
 	}
 
