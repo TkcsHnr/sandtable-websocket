@@ -1,13 +1,22 @@
 import { WebSocketServer } from 'ws';
+import 'dotenv/config';
 
+const password = process.env.WEBSOCKET_PASSWORD;
 const port = process.env.PORT || 8090;
-const wss = new WebSocketServer({ port });
+const wss = new WebSocketServer({ port, maxPayload: 10000 });
 
 let espSocket = null;
 let webSockets = [];
 
 wss.on('connection', (ws) => {
-	if (ws.protocol === 'webapp') {
+	let protocols = ws.protocol.split(',').map(p => p.trim());
+	if(protocols.length < 2 || protocols[1] != password) {
+		ws.close(1008, "Unauthorized connection");
+		return;
+	}
+
+
+	if (protocols[0] === 'webapp') {
 		console.log('Webapp connected');
 		webSockets.push(ws);
 
@@ -17,7 +26,7 @@ wss.on('connection', (ws) => {
 		});
 	}
 
-	if (ws.protocol === 'esp') {
+	if (protocols[0] === 'esp') {
 		console.log('Esp connected');
 		espSocket = ws;
 
@@ -29,15 +38,15 @@ wss.on('connection', (ws) => {
 
 	ws.on('message', (data) => {
 		console.log('Message received');
-
-		if (ws.protocol === 'esp') {
+		
+		if (protocols[0] === 'esp') {
 			console.log('Sending message to webapps');
 			webSockets.forEach((webSocket) => {
 				webSocket.send(data);
 			});
 		}
 
-		if (ws.protocol === 'webapp') {
+		if (protocols[0] === 'webapp') {
 			console.log('Sending message to esp');
 			if (espSocket) {
 				espSocket.send(data);
