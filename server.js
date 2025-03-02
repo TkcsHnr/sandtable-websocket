@@ -1,4 +1,4 @@
-import { WebSocketServer } from 'ws';
+import { OPEN, WebSocketServer } from 'ws';
 import 'dotenv/config';
 
 const password = process.env.WEBSOCKET_PASSWORD;
@@ -36,7 +36,7 @@ wss.on('connection', (ws, req) => {
 		console.log('Esp connected');
 		espSocket = ws;
 		webSockets.forEach((webSocket) => {
-			webSocket.send([WSCmdType_ESP_STATE, 1]);
+			webSocket.send([WSCmdType_ESP_STATE, espSocket && espSocket.readyState == OPEN]);
 		});
 
 		ws.on('close', () => {
