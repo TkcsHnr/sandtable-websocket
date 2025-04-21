@@ -1,4 +1,4 @@
-import { OPEN, WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import 'dotenv/config';
 
 const password = process.env.WEBSOCKET_PASSWORD;
@@ -9,6 +9,38 @@ let espSocket = null;
 let webSockets = [];
 
 const WSCmdType_ESP_STATE = 0x0f;
+const HEARTBEAT_INTERVAL_MS = 10000;
+
+let espLastSeen = null;
+let heartbeatInterval = null;
+
+function startESPHeartbeat() {
+	if (heartbeatInterval) clearInterval(heartbeatInterval);
+
+	espLastSeen = Date.now();
+
+	heartbeatInterval = setInterval(() => {
+		const now = Date.now();
+
+		if (espSocket && espSocket.readyState === WebSocket.OPEN) {
+			espSocket.ping();
+		}
+
+		if (now - espLastSeen > HEARTBEAT_INTERVAL_MS) {
+			console.log(now - espLastSeen);
+			console.log('Esp unresponsive. Terminating.');
+			espSocket.terminate();
+			espSocket = null;
+
+			clearInterval(heartbeatInterval);
+			heartbeatInterval = null;
+
+			webSockets.forEach((webSocket) => {
+				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
+			});
+		}
+	}, HEARTBEAT_INTERVAL_MS);
+}
 
 wss.on('connection', (ws, req) => {
 	let protocols = (req.headers['sec-websocket-protocol'] || '')
@@ -24,7 +56,7 @@ wss.on('connection', (ws, req) => {
 	if (protocols[0] === 'webapp') {
 		console.log('Webapp connected');
 		webSockets.push(ws);
-		ws.send([WSCmdType_ESP_STATE, espSocket == null ? 0 : 1]);
+		ws.send(Buffer.from([WSCmdType_ESP_STATE, espSocket == null ? 0 : 1]));
 
 		ws.on('close', () => {
 			webSockets = webSockets.filter((client) => client !== ws);
@@ -35,17 +67,26 @@ wss.on('connection', (ws, req) => {
 	if (protocols[0] === 'esp') {
 		console.log('Esp connected');
 		espSocket = ws;
+		startESPHeartbeat();
+
 		webSockets.forEach((webSocket) => {
-			webSocket.send([WSCmdType_ESP_STATE, espSocket && espSocket.readyState == OPEN]);
+			webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 1]));
+		});
+
+		ws.on('pong', () => {
+			espLastSeen = Date.now();
 		});
 
 		ws.on('close', () => {
 			espSocket = null;
 			console.log('Esp disconnected');
-
 			webSockets.forEach((webSocket) => {
-				webSocket.send([WSCmdType_ESP_STATE, 0]);
+				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
 			});
+			if(heartbeatInterval) {
+				clearInterval(heartbeatInterval);
+				heartbeatInterval = null;
+			}
 		});
 	}
 
