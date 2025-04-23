@@ -26,9 +26,8 @@ function startESPHeartbeat() {
 			espSocket.ping();
 		}
 
-		if (now - espLastSeen > HEARTBEAT_INTERVAL_MS) {
-			console.log(now - espLastSeen);
-			console.log('Esp unresponsive. Terminating.');
+		if (now - espLastSeen > 2 * HEARTBEAT_INTERVAL_MS) {
+			console.log('Esp missed 2 consecutive pings. Terminating.');
 			espSocket.terminate();
 			espSocket = null;
 
