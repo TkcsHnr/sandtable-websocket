@@ -61,11 +61,20 @@ wss.on('connection', (ws, req) => {
 			webSockets = webSockets.filter((client) => client !== ws);
 			console.log('Webapp disconnected');
 		});
+
+		ws.on('message', (data) => {
+			if (espSocket) {
+				console.log('Sending message to esp');
+				espSocket.send(data);
+			} else {
+				console.log('Esp not connected, message not sent');
+			}
+		});
 	}
 
 	if (protocols[0] === 'esp') {
-		console.log('Esp connected');
 		espSocket = ws;
+		console.log('Esp connected');
 		startESPHeartbeat();
 
 		webSockets.forEach((webSocket) => {
@@ -82,30 +91,20 @@ wss.on('connection', (ws, req) => {
 			webSockets.forEach((webSocket) => {
 				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
 			});
-			if(heartbeatInterval) {
+			if (heartbeatInterval) {
 				clearInterval(heartbeatInterval);
 				heartbeatInterval = null;
 			}
 		});
-	}
 
-	ws.on('message', (data) => {
-		console.log('Message received');
-
-		if (protocols[0] === 'esp') {
+		ws.on('message', (data) => {
+			espSocket = ws;
 			console.log('Sending message to webapps');
 			webSockets.forEach((webSocket) => {
 				webSocket.send(data);
 			});
-		}
-
-		if (protocols[0] === 'webapp') {
-			console.log('Sending message to esp');
-			if (espSocket) {
-				espSocket.send(data);
-			}
-		}
-	});
+		});
+	}
 });
 
 console.log('WebSocketServer listening on address: ', wss.address());
