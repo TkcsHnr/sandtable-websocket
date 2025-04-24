@@ -14,10 +14,13 @@ const HEARTBEAT_INTERVAL_MS = 10000;
 let espLastSeen = null;
 let heartbeatInterval = null;
 
+function espHereYouAre() {
+	espLastSeen = Date.now();
+	espSocket = ws;
+}
+
 function startESPHeartbeat() {
 	if (heartbeatInterval) clearInterval(heartbeatInterval);
-
-	espLastSeen = Date.now();
 
 	heartbeatInterval = setInterval(() => {
 		const now = Date.now();
@@ -73,8 +76,8 @@ wss.on('connection', (ws, req) => {
 	}
 
 	if (protocols[0] === 'esp') {
-		espSocket = ws;
 		console.log('Esp connected');
+		espHereYouAre();
 		startESPHeartbeat();
 
 		webSockets.forEach((webSocket) => {
@@ -82,7 +85,7 @@ wss.on('connection', (ws, req) => {
 		});
 
 		ws.on('pong', () => {
-			espLastSeen = Date.now();
+			espHereYouAre();
 		});
 
 		ws.on('close', () => {
@@ -98,7 +101,7 @@ wss.on('connection', (ws, req) => {
 		});
 
 		ws.on('message', (data) => {
-			espSocket = ws;
+			espHereYouAre();
 			console.log('Sending message to webapps');
 			webSockets.forEach((webSocket) => {
 				webSocket.send(data);
