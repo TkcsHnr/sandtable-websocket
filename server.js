@@ -55,6 +55,11 @@ wss.on('connection', (ws, req) => {
 		return;
 	}
 
+	ws.on('error', (err) => {
+		console.error('WebSocket error, terminating:', err);
+		ws.terminate();
+	});
+
 	if (protocols[0] === 'webapp') {
 		console.log('Webapp connected');
 		webSockets.push(ws);
