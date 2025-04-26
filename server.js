@@ -45,6 +45,7 @@ function startESPHeartbeat() {
 }
 
 wss.on('connection', (ws, req) => {
+	console.log('somebody wants to join...');
 	let protocols = (req.headers['sec-websocket-protocol'] || '')
 		.split(',')
 		.map((p) => p.trim());
