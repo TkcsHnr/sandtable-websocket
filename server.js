@@ -15,8 +15,17 @@ let espLastSeen = null;
 let heartbeatInterval = null;
 
 function espHereYouAre(ws) {
+	console.log('esp here you are');
 	espLastSeen = Date.now();
 	espSocket = ws;
+}
+
+function closeEspSocket() {
+	espSocket.terminate();
+	espSocket = null;
+	webSockets.forEach((webSocket) => {
+		webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
+	});
 }
 
 function startESPHeartbeat() {
@@ -31,21 +40,15 @@ function startESPHeartbeat() {
 
 		if (now - espLastSeen > 2 * HEARTBEAT_INTERVAL_MS) {
 			console.log('Esp missed 2 consecutive pings. Terminating.');
-			espSocket.terminate();
-			espSocket = null;
+			closeEspSocket();
 
 			clearInterval(heartbeatInterval);
 			heartbeatInterval = null;
-
-			webSockets.forEach((webSocket) => {
-				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
-			});
 		}
 	}, HEARTBEAT_INTERVAL_MS);
 }
 
 wss.on('connection', (ws, req) => {
-	console.log('somebody wants to join...');
 	let protocols = (req.headers['sec-websocket-protocol'] || '')
 		.split(',')
 		.map((p) => p.trim());
@@ -56,15 +59,16 @@ wss.on('connection', (ws, req) => {
 		return;
 	}
 
-	ws.on('error', (err) => {
-		console.error('WebSocket error, terminating:', err);
-		ws.terminate();
-	});
-
 	if (protocols[0] === 'webapp') {
 		console.log('Webapp connected');
 		webSockets.push(ws);
-		ws.send(Buffer.from([WSCmdType_ESP_STATE, espSocket == null ? 0 : 1]));
+
+		ws.send(
+			Buffer.from([
+				WSCmdType_ESP_STATE,
+				espSocket == null ? 0 : espSocket.readyState == WebSocket.OPEN ? 1 : 0,
+			])
+		);
 
 		ws.on('close', () => {
 			webSockets = webSockets.filter((client) => client !== ws);
@@ -78,6 +82,11 @@ wss.on('connection', (ws, req) => {
 			} else {
 				console.log('Esp not connected, message not sent');
 			}
+		});
+
+		ws.on('error', (err) => {
+			console.error('Webapp error, terminating:', err);
+			ws.terminate();
 		});
 	}
 
@@ -95,8 +104,8 @@ wss.on('connection', (ws, req) => {
 		});
 
 		ws.on('close', () => {
-			espSocket = null;
 			console.log('Esp disconnected');
+			espSocket = null;
 			webSockets.forEach((webSocket) => {
 				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
 			});
@@ -112,6 +121,11 @@ wss.on('connection', (ws, req) => {
 			webSockets.forEach((webSocket) => {
 				webSocket.send(data);
 			});
+		});
+
+		ws.on('error', (err) => {
+			console.error('ESP error, terminating:', err);
+			closeEspSocket();
 		});
 	}
 });
