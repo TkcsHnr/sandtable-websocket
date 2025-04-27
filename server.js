@@ -14,36 +14,50 @@ const HEARTBEAT_INTERVAL_MS = 10000;
 let espLastSeen = null;
 let heartbeatInterval = null;
 
-function espHereYouAre(ws) {
-	console.log('esp here you are');
-	espLastSeen = Date.now();
-	espSocket = ws;
-}
+function cleanupESP() {
+	clearInterval(heartbeatInterval);
+	heartbeatInterval = null;
 
-function closeEspSocket() {
-	espSocket.terminate();
+	if (isSocketOpen(espSocket)) {
+		espSocket.terminate();
+	}
 	espSocket = null;
+
 	webSockets.forEach((webSocket) => {
-		webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
+		if (isSocketOpen(webSocket)) {
+			webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
+		}
 	});
 }
 
+function isSocketOpen(socket) {
+	return socket && socket.readyState === WebSocket.OPEN;
+}
+
 function startESPHeartbeat() {
-	if (heartbeatInterval) clearInterval(heartbeatInterval);
+	if (heartbeatInterval !== null) clearInterval(heartbeatInterval);
+
+	espLastSeen = Date.now();
 
 	heartbeatInterval = setInterval(() => {
-		const now = Date.now();
-
-		if (espSocket && espSocket.readyState === WebSocket.OPEN) {
-			espSocket.ping();
+		if (!isSocketOpen(espSocket)) {
+			console.log('Esp is not connected during heartbeat');
+			cleanupESP();
+			return;
 		}
 
+		const now = Date.now();
 		if (now - espLastSeen > 2 * HEARTBEAT_INTERVAL_MS) {
 			console.log('Esp missed 2 consecutive pings. Terminating.');
-			closeEspSocket();
+			cleanupESP();
+			return;
+		}
 
-			clearInterval(heartbeatInterval);
-			heartbeatInterval = null;
+		try {
+			espSocket.ping();
+		} catch (err) {
+			console.error('Error sending ping to ESP:', err);
+			cleanupESP();
 		}
 	}, HEARTBEAT_INTERVAL_MS);
 }
@@ -63,21 +77,16 @@ wss.on('connection', (ws, req) => {
 		console.log('Webapp connected');
 		webSockets.push(ws);
 
-		ws.send(
-			Buffer.from([
-				WSCmdType_ESP_STATE,
-				espSocket == null ? 0 : espSocket.readyState == WebSocket.OPEN ? 1 : 0,
-			])
-		);
+		ws.send(Buffer.from([WSCmdType_ESP_STATE, isSocketOpen(espSocket) ? 1 : 0]));
 
 		ws.on('close', () => {
-			webSockets = webSockets.filter((client) => client !== ws);
 			console.log('Webapp disconnected');
+			webSockets = webSockets.filter((client) => client !== ws);
 		});
 
 		ws.on('message', (data) => {
-			if (espSocket) {
-				console.log('Sending message to esp');
+			if (isSocketOpen(espSocket)) {
+				console.log('Forwarding message to esp');
 				espSocket.send(data);
 			} else {
 				console.log('Esp not connected, message not sent');
@@ -86,46 +95,46 @@ wss.on('connection', (ws, req) => {
 
 		ws.on('error', (err) => {
 			console.error('Webapp error, terminating:', err);
+			webSockets = webSockets.filter((client) => client !== ws);
 			ws.terminate();
 		});
 	}
 
 	if (protocols[0] === 'esp') {
 		console.log('Esp connected');
-		espHereYouAre(ws);
+		espSocket = ws;
 		startESPHeartbeat();
 
 		webSockets.forEach((webSocket) => {
-			webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 1]));
+			if (isSocketOpen(webSocket)) {
+				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 1]));
+			}
 		});
 
 		ws.on('pong', () => {
-			espHereYouAre(ws);
-		});
-
-		ws.on('close', () => {
-			console.log('Esp disconnected');
-			espSocket = null;
-			webSockets.forEach((webSocket) => {
-				webSocket.send(Buffer.from([WSCmdType_ESP_STATE, 0]));
-			});
-			if (heartbeatInterval) {
-				clearInterval(heartbeatInterval);
-				heartbeatInterval = null;
+			if (isSocketOpen(espSocket)) {
+				console.log('Received pong from esp');
+				espLastSeen = Date.now();
 			}
 		});
 
 		ws.on('message', (data) => {
-			espHereYouAre(ws);
-			console.log('Sending message to webapps');
+			console.log('Forwarding message to webapps');
 			webSockets.forEach((webSocket) => {
-				webSocket.send(data);
+				if (isSocketOpen(webSocket)) {
+					webSocket.send(data);
+				}
 			});
 		});
 
+		ws.on('close', () => {
+			console.log('Esp disconnected');
+			cleanupESP();
+		});
+
 		ws.on('error', (err) => {
-			console.error('ESP error, terminating:', err);
-			closeEspSocket();
+			console.error('ESP error:', err);
+			cleanupESP();
 		});
 	}
 });
