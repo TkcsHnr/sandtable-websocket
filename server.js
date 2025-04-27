@@ -9,14 +9,16 @@ let espSocket = null;
 let webSockets = [];
 
 const WSCmdType_ESP_STATE = 0x0f;
-const HEARTBEAT_INTERVAL_MS = 10000;
+const HEARTBEAT_INTERVAL_MS = 5000;
 
 let espLastSeen = null;
 let heartbeatInterval = null;
 
 function cleanupESP() {
-	clearInterval(heartbeatInterval);
-	heartbeatInterval = null;
+	if (heartbeatInterval !== null) {
+		clearInterval(heartbeatInterval);
+		heartbeatInterval = null;
+	}
 
 	if (isSocketOpen(espSocket)) {
 		espSocket.terminate();
@@ -38,26 +40,11 @@ function startESPHeartbeat() {
 	if (heartbeatInterval !== null) clearInterval(heartbeatInterval);
 
 	espLastSeen = Date.now();
-
 	heartbeatInterval = setInterval(() => {
-		if (!isSocketOpen(espSocket)) {
-			console.log('Esp is not connected during heartbeat');
+		if (Date.now() - espLastSeen > 2 * HEARTBEAT_INTERVAL_MS) {
+			console.log('Esp did not respond for too long, terminating.');
 			cleanupESP();
 			return;
-		}
-
-		const now = Date.now();
-		if (now - espLastSeen > 2 * HEARTBEAT_INTERVAL_MS) {
-			console.log('Esp missed 2 consecutive pings. Terminating.');
-			cleanupESP();
-			return;
-		}
-
-		try {
-			espSocket.ping();
-		} catch (err) {
-			console.error('Error sending ping to ESP:', err);
-			cleanupESP();
 		}
 	}, HEARTBEAT_INTERVAL_MS);
 }
@@ -111,14 +98,12 @@ wss.on('connection', (ws, req) => {
 			}
 		});
 
-		ws.on('pong', () => {
-			if (isSocketOpen(espSocket)) {
-				console.log('Received pong from esp');
-				espLastSeen = Date.now();
-			}
-		});
-
 		ws.on('message', (data) => {
+			if (data[0] == WSCmdType_ESP_STATE) {
+				console.log('Esp here you are');
+				espLastSeen = Date.now();
+				return;
+			}
 			console.log('Forwarding message to webapps');
 			webSockets.forEach((webSocket) => {
 				if (isSocketOpen(webSocket)) {
