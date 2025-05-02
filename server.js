@@ -1,9 +1,12 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import 'dotenv/config';
+import express from 'express';
+import http from 'http';
 
+const app = express();
+const server = http.createServer(app);
 const password = process.env.WEBSOCKET_PASSWORD;
-const port = process.env.PORT || 8090;
-const wss = new WebSocketServer({ port, maxPayload: 10000 });
+const wss = new WebSocketServer({ server, maxPayload: 10000 });
 
 let espSocket = null;
 let webSockets = [];
@@ -127,4 +130,12 @@ wss.on('connection', (ws, req) => {
 	}
 });
 
-console.log('WebSocketServer listening on address: ', wss.address());
+app.get('/', (req, res) => {
+	console.log('keepalive ping received');
+	res.status(200).send('OK');
+});
+
+const port = process.env.PORT || 8090;
+server.listen(port, () => {
+	console.log(`Server and WebSocket listening on port ${port}`);
+});
