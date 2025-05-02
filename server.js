@@ -41,13 +41,17 @@ function startESPHeartbeat() {
 
 	espLastSeen = Date.now();
 	heartbeatInterval = setInterval(() => {
-		if (Date.now() - espLastSeen > 2 * HEARTBEAT_INTERVAL_MS) {
+		if (Date.now() - espLastSeen > 3 * HEARTBEAT_INTERVAL_MS) {
 			console.log('Esp did not respond for too long, terminating.');
 			cleanupESP();
 			return;
 		}
 	}, HEARTBEAT_INTERVAL_MS);
 }
+
+wss.on('error', (error) => {
+	console.log('Server error, name:', error.name, ', message:', error.message);
+});
 
 wss.on('connection', (ws, req) => {
 	let protocols = (req.headers['sec-websocket-protocol'] || '')
@@ -100,7 +104,6 @@ wss.on('connection', (ws, req) => {
 
 		ws.on('message', (data) => {
 			if (data[0] == WSCmdType_ESP_STATE) {
-				console.log('Esp here you are');
 				espLastSeen = Date.now();
 				return;
 			}
