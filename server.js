@@ -64,7 +64,7 @@ function startESPHeartbeatCheck() {
 
 	espLastSeen = Date.now();
 	heartbeatInterval = setInterval(() => {
-		if (Date.now() - espLastSeen > HEARTBEAT_INTERVAL_MS + 5000) {
+		if (Date.now() - espLastSeen > HEARTBEAT_INTERVAL_MS * 3) {
 			console.log('Esp did not respond for too long, terminating.');
 			cleanupESP();
 			return;
@@ -100,10 +100,7 @@ wss.on('connection', (ws, req) => {
 
 		ws.on('message', (data) => {
 			if (isSocketOpen(espSocket)) {
-				console.log('Forwarding message to esp');
 				espSocket.send(data);
-			} else {
-				console.log('Esp not connected, message not sent');
 			}
 		});
 
@@ -131,7 +128,6 @@ wss.on('connection', (ws, req) => {
 				keepServerAlive();
 				return;
 			}
-			console.log('Forwarding message to webapps');
 			webSockets.forEach((webSocket) => {
 				if (isSocketOpen(webSocket)) {
 					webSocket.send(data);
