@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
+import axios from 'axios';
 
 const app = express();
 const server = http.createServer(app);
@@ -13,9 +14,28 @@ let webSockets = [];
 
 const WSCmdType_ESP_STATE = 0x0f;
 const HEARTBEAT_INTERVAL_MS = 5000;
+const KEEP_ALIVE_INTERVAL_MS = 5000;
 
-let espLastSeen = null;
+let espLastSeen = 0;
+let lastKeepAlivePing = 0;
 let heartbeatInterval = null;
+
+function keepServerAlive() {
+	if(Date.now() - lastKeepAlivePing < KEEP_ALIVE_INTERVAL_MS) {
+		return;
+	}
+
+	lastKeepAlivePing = Date.now();
+	console.log("Sending HTTP keepalive ping");
+	axios
+		.get('https://sandtable-websocket.onrender.com/ping')
+		.then((response) => {
+			console.log('HTTP ping successful:', response.status);
+		})
+		.catch((error) => {
+			console.error('Error pinging server:', error);
+		});
+}
 
 function cleanupESP() {
 	if (heartbeatInterval !== null) {
@@ -39,12 +59,12 @@ function isSocketOpen(socket) {
 	return socket && socket.readyState === WebSocket.OPEN;
 }
 
-function startESPHeartbeat() {
+function startESPHeartbeatCheck() {
 	if (heartbeatInterval !== null) clearInterval(heartbeatInterval);
 
 	espLastSeen = Date.now();
 	heartbeatInterval = setInterval(() => {
-		if (Date.now() - espLastSeen > 3 * HEARTBEAT_INTERVAL_MS) {
+		if (Date.now() - espLastSeen > HEARTBEAT_INTERVAL_MS + 5000) {
 			console.log('Esp did not respond for too long, terminating.');
 			cleanupESP();
 			return;
@@ -97,7 +117,7 @@ wss.on('connection', (ws, req) => {
 	if (protocols[0] === 'esp') {
 		console.log('Esp connected');
 		espSocket = ws;
-		startESPHeartbeat();
+		startESPHeartbeatCheck();
 
 		webSockets.forEach((webSocket) => {
 			if (isSocketOpen(webSocket)) {
@@ -108,6 +128,7 @@ wss.on('connection', (ws, req) => {
 		ws.on('message', (data) => {
 			if (data[0] == WSCmdType_ESP_STATE) {
 				espLastSeen = Date.now();
+				keepServerAlive();
 				return;
 			}
 			console.log('Forwarding message to webapps');
@@ -130,7 +151,7 @@ wss.on('connection', (ws, req) => {
 	}
 });
 
-app.get('/', (req, res) => {
+app.get('/ping', (req, res) => {
 	console.log('keepalive ping received');
 	res.status(200).send('OK');
 });
