@@ -14,7 +14,7 @@ let webSockets = [];
 
 const WSCmdType_ESP_STATE = 0x0f;
 const HEARTBEAT_INTERVAL_MS = 5000;
-const KEEP_ALIVE_INTERVAL_MS = 5000;
+const KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000;
 
 let espLastSeen = 0;
 let lastKeepAlivePing = 0;
