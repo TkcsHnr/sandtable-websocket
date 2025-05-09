@@ -60,16 +60,16 @@ function isSocketOpen(socket) {
 }
 
 function startESPHeartbeatCheck() {
-	// if (heartbeatInterval !== null) clearInterval(heartbeatInterval);
+	if (heartbeatInterval !== null) clearInterval(heartbeatInterval);
 
-	// espLastSeen = Date.now();
-	// heartbeatInterval = setInterval(() => {
-	// 	if (Date.now() - espLastSeen > HEARTBEAT_INTERVAL_MS * 3) {
-	// 		console.log('Esp did not respond for too long, terminating.');
-	// 		cleanupESP();
-	// 		return;
-	// 	}
-	// }, HEARTBEAT_INTERVAL_MS);
+	espLastSeen = Date.now();
+	heartbeatInterval = setInterval(() => {
+		if (Date.now() - espLastSeen > HEARTBEAT_INTERVAL_MS * 3) {
+			console.log('Esp did not respond for too long, terminating.');
+			cleanupESP();
+			return;
+		}
+	}, HEARTBEAT_INTERVAL_MS);
 }
 
 wss.on('error', (error) => {
